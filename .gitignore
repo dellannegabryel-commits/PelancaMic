@@ -1,0 +1,55 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.iml
+*.iws
+*.ipr
+
+# Android
+android/.gradle/
+android/.idea/
+android/local.properties
+android/*.apk
+android/*.aab
+android/build/
+android/androidApp/build/
+android/shared/build/
+
+# Node
+pc/node_modules/
+pc/dist/
+pc/build/
+pc/src-tauri/target/
+pc/.vite/
+
+# Rust
+Cargo.lock
+target/
+
+# Tauri
+pc/src-tauri/target/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Testing
+coverage/
+.nyc_output/
+
+# Misc
+*.tmp
+*.temp
+.cache/

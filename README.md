@@ -10,7 +10,7 @@ O **PelancaMic** é um aplicativo de código aberto construído com foco agressi
 
 O projeto foi desenhado para contornar as limitações de frameworks híbridos, utilizando tecnologias nativas e de baixo nível para extrair cada milissegundo de performance da sua rede:
 
-- **Mobile (Cliente):** Escrito 100% em **Kotlin + Jetpack Compose**. Uso direto da API `AudioRecord` para captura de áudio com prioridade máxima do sistema Android.
+- **Android (Cliente):** Escrito em **Kotlin + Compose Multiplatform** com **Amper** (Kotlin CLI). Uso direto da API `AudioRecord` para captura de áudio com prioridade máxima do sistema Android.
 - **Desktop (Servidor):** Construído com **Tauri v3 e Rust**. Processamento de pacotes UDP, Jitter Buffer adaptativo e injeção de áudio diretamente no hardware, garantindo consumo quase nulo de RAM e CPU enquanto você joga.
 
 ## 📐 Topologia de Rede
@@ -27,29 +27,44 @@ O sistema se comunica de forma descentralizada na sua rede Wi-Fi utilizando trê
 
 ```text
 pelancamic/
-├── mobile/                  # App Android nativo (Kotlin + Compose)
-│   ├── app/src/main/java/   # Lógica de Captura e Sockets
-│   └── app/src/main/res/    # UI Material 3 / Glassmorphism
+├── android/                 # App Android (Kotlin + Amper + Compose Multiplatform)
+│   ├── androidApp/          # Entry point (MainActivity)
+│   ├── shared/              # KMP library (UI, platform abstraction)
+│   │   ├── src/             # Common code (expect/actual)
+│   │   └── src@android/     # Android implementations
+│   ├── libs.versions.toml   # Version catalog
+│   ├── project.yaml         # Amper project config
+│   └── module.yaml          # Module configs
 └── pc/                      # Servidor Desktop (Tauri + Rust)
     ├── src/                 # Frontend (React 18 + Vite)
     └── src-tauri/src/       # Backend Nativo (Rust, cpal, tokio)
-    
-    ## 🛠️ Como Iniciar o Desenvolvimento
-    
-    ### Pré-requisitos
-    
-    * **Android:** Android Studio (Koala+) e um celular físico (Emuladores bloqueiam pacotes UDP Broadcast).
-    * **PC:** Rust (`rustup`), Node.js (v20+), e um cabo virtual de áudio instalado no seu SO ([VB-CABLE](https://vb-audio.com/Cable/) no Windows ou módulo loopback do PipeWire no Linux).
-    
-    ### Rodando o Servidor (PC)
-    
-    ```bash
-    cd pc
-    npm install
-    npm run tauri dev
-    
-    ```
-    
-    ### Rodando o Cliente (Mobile)
-    
-    Abra a pasta `/mobile` no Android Studio, conecte seu aparelho via USB ou Wi-Fi Debugging e clique em **Run 'app'**.
+```
+
+## 🛠️ Como Iniciar o Desenvolvimento
+
+### Pré-requisitos
+
+* **Android:** Android Studio (Koala+), um celular físico (Emuladores bloqueiam pacotes UDP Broadcast), Amper wrapper (`android/kotlin`).
+* **PC:** Rust (`rustup`), Node.js (v20+), e um cabo virtual de áudio instalado no seu SO ([VB-CABLE](https://vb-audio.com/Cable/) no Windows ou módulo loopback do PipeWire no Linux).
+
+### Rodando o Servidor (PC)
+
+```bash
+cd pc
+npm install
+npm run tauri dev
+```
+
+### Rodando o Cliente (Android)
+
+**Via Android Studio:**
+1. Abra a pasta `android/` no Android Studio
+2. Conecte seu aparelho via USB ou Wi-Fi Debugging
+3. Clique em **Run 'androidApp'**
+
+**Via CLI (Amper):**
+```bash
+cd android
+./kotlin amper build
+./kotlin amper test
+```

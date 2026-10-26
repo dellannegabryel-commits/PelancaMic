@@ -1,0 +1,32 @@
+# Build outputs
+build/
+*.iml
+
+# Kotlin
+.kotlin/
+
+# Gradle
+.gradle/
+local.properties
+
+# Android
+*.apk
+*.aab
+
+# IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+
+# Xcode (for KMP iOS)
+**/module.xcodeproj/*
+!**/module.xcodeproj/project.pbxproj
+!**/module.xcodeproj/xcshareddata/
+!**/module.xcodeproj/project.xcworkspace/
+**/xcshareddata/WorkspaceSettings.xcsettings
+xcuserdata
+
+# Amper
+.kotlin-cache/
