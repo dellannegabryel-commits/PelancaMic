@@ -33,3 +33,23 @@ pelancamic/
 └── pc/                      # Servidor Desktop (Tauri + Rust)
     ├── src/                 # Frontend (React 18 + Vite)
     └── src-tauri/src/       # Backend Nativo (Rust, cpal, tokio)
+    
+    ## 🛠️ Como Iniciar o Desenvolvimento
+    
+    ### Pré-requisitos
+    
+    * **Android:** Android Studio (Koala+) e um celular físico (Emuladores bloqueiam pacotes UDP Broadcast).
+    * **PC:** Rust (`rustup`), Node.js (v20+), e um cabo virtual de áudio instalado no seu SO ([VB-CABLE](https://vb-audio.com/Cable/) no Windows ou módulo loopback do PipeWire no Linux).
+    
+    ### Rodando o Servidor (PC)
+    
+    ```bash
+    cd pc
+    npm install
+    npm run tauri dev
+    
+    ```
+    
+    ### Rodando o Cliente (Mobile)
+    
+    Abra a pasta `/mobile` no Android Studio, conecte seu aparelho via USB ou Wi-Fi Debugging e clique em **Run 'app'**.
