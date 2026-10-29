@@ -1,4 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
+import { invoke } from '@tauri-apps/api/core'
+import { listen } from '@tauri-apps/api/event'
 
 interface ServerStatus {
   running: boolean
@@ -6,14 +8,14 @@ interface ServerStatus {
   audioPort: number
   controlPort: number
   discoveryPort: number
-}
-
-interface AudioStats {
+  bufferLen: number
+  targetFrames: number
+  bufferHealth: number
   packetsReceived: number
   packetsLost: number
   jitterMs: number
-  bufferHealth: number
 }
+
 
 function App() {
   const [status, setStatus] = useState<ServerStatus>({
@@ -22,56 +24,99 @@ function App() {
     audioPort: 41235,
     controlPort: 41236,
     discoveryPort: 41234,
-  })
-  const [audioStats, setAudioStats] = useState<AudioStats>({
+    bufferLen: 0,
+    targetFrames: 5,
+    bufferHealth: 0,
     packetsReceived: 0,
     packetsLost: 0,
     jitterMs: 0,
-    bufferHealth: 0,
   })
   const [logs, setLogs] = useState<string[]>([])
   const [selectedDevice, setSelectedDevice] = useState<string>('')
+  const [devices, setDevices] = useState<string[]>([])
+  const [loading, setLoading] = useState(false)
 
-  const addLog = (message: string, type: 'info' | 'success' | 'error' | 'warning' = 'info') => {
+  const addLog = useCallback((message: string, type: 'info' | 'success' | 'error' | 'warning' = 'info') => {
     const timestamp = new Date().toLocaleTimeString()
     const prefix = { info: '[INFO]', success: '[OK]', error: '[ERR]', warning: '[WARN]' }[type]
     setLogs(prev => [...prev.slice(-99), `${timestamp} ${prefix} ${message}`])
-  }
+  }, [])
+
+  const refreshStatus = useCallback(async () => {
+    try {
+      const serverStatus = await invoke<ServerStatus>('get_status')
+      setStatus(serverStatus)
+    } catch (e) {
+      // Ignore errors when server not running
+    }
+  }, [])
+
+  const loadDevices = useCallback(async () => {
+    try {
+      const deviceList = await invoke<string[]>('list_audio_devices')
+      setDevices(deviceList)
+      setSelectedDevice(current => {
+        if (current) return current
+        if (deviceList.length === 0) return current
+        const vbCable = deviceList.find(d => d.toLowerCase().includes('cable') || d.toLowerCase().includes('vb-audio'))
+        return vbCable || deviceList[0]
+      })
+    } catch (e) {
+      addLog(`Failed to load audio devices: ${e}`, 'error')
+    }
+  }, [addLog])
 
   const startServer = async () => {
+    setLoading(true)
     try {
-      // TODO: Invoke Tauri command to start Rust servers
-      setStatus(prev => ({ ...prev, running: true }))
+      await invoke('start_server', { deviceName: selectedDevice || null })
       addLog('Server started on ports 41234 (discovery), 41235 (audio), 41236 (control)', 'success')
       addLog('Waiting for Android client to connect...', 'info')
+      setStatus(prev => ({ ...prev, running: true }))
+      try {
+        const s = await invoke<ServerStatus>('get_status')
+        setStatus(s)
+      } catch {}
     } catch (e) {
       addLog(`Failed to start server: ${e}`, 'error')
+    } finally {
+      setLoading(false)
     }
   }
 
   const stopServer = async () => {
+    setLoading(true)
     try {
-      // TODO: Invoke Tauri command to stop Rust servers
-      setStatus(prev => ({ ...prev, running: false, clients: 0 }))
+      await invoke('stop_server')
       addLog('Server stopped', 'warning')
+      setStatus(prev => ({ ...prev, running: false, clients: 0 }))
     } catch (e) {
       addLog(`Failed to stop server: ${e}`, 'error')
+    } finally {
+      setLoading(false)
     }
   }
 
-  // Simulate stats updates
+  // Poll status every second when running
   useEffect(() => {
     if (!status.running) return
-    const interval = setInterval(() => {
-      setAudioStats(prev => ({
-        packetsReceived: prev.packetsReceived + Math.floor(Math.random() * 10) + 48,
-        packetsLost: prev.packetsLost + (Math.random() > 0.95 ? 1 : 0),
-        jitterMs: Math.max(1, Math.min(15, prev.jitterMs + (Math.random() - 0.5) * 2)),
-        bufferHealth: Math.max(30, Math.min(100, prev.bufferHealth + (Math.random() - 0.5) * 10)),
-      }))
-    }, 1000)
+    const interval = setInterval(refreshStatus, 1000)
     return () => clearInterval(interval)
-  }, [status.running])
+  }, [status.running, refreshStatus])
+
+  // Load devices on mount
+  useEffect(() => {
+    loadDevices()
+  }, [loadDevices])
+
+  // Listen for log events from backend
+  useEffect(() => {
+    const unlisten = listen('log', (event) => {
+      const { message, type } = event.payload as { message: string; type: string }
+      addLog(message, type as 'info' | 'success' | 'error' | 'warning')
+    })
+    return () => { unlisten.then(f => f()) }
+  }, [addLog])
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
@@ -136,19 +181,37 @@ function App() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px' }}>
             <div>
               <label style={{ display: 'block', fontSize: '12px', color: 'var(--fg-secondary)', marginBottom: '4px' }}>Packets Received</label>
-              <div style={{ fontFamily: 'monospace', fontSize: '18px', fontWeight: 600 }}>{audioStats.packetsReceived.toLocaleString()}</div>
+              <div style={{ fontFamily: 'monospace', fontSize: '18px', fontWeight: 600 }}>{status.packetsReceived.toLocaleString()}</div>
             </div>
             <div>
               <label style={{ display: 'block', fontSize: '12px', color: 'var(--fg-secondary)', marginBottom: '4px' }}>Packets Lost</label>
-              <div style={{ fontFamily: 'monospace', fontSize: '18px', fontWeight: 600, color: audioStats.packetsLost > 0 ? 'var(--error)' : 'var(--success)' }}>{audioStats.packetsLost}</div>
+              <div style={{ fontFamily: 'monospace', fontSize: '18px', fontWeight: 600, color: status.packetsLost > 0 ? 'var(--error)' : 'var(--success)' }}>{status.packetsLost}</div>
             </div>
             <div>
               <label style={{ display: 'block', fontSize: '12px', color: 'var(--fg-secondary)', marginBottom: '4px' }}>Jitter</label>
-              <div style={{ fontFamily: 'monospace', fontSize: '18px', fontWeight: 600 }}>{audioStats.jitterMs.toFixed(1)} ms</div>
+              <div style={{ fontFamily: 'monospace', fontSize: '18px', fontWeight: 600 }}>{status.jitterMs.toFixed(1)} ms</div>
             </div>
             <div>
               <label style={{ display: 'block', fontSize: '12px', color: 'var(--fg-secondary)', marginBottom: '4px' }}>Buffer Health</label>
-              <div style={{ fontFamily: 'monospace', fontSize: '18px', fontWeight: 600 }}>{audioStats.bufferHealth.toFixed(0)}%</div>
+              <div style={{ fontFamily: 'monospace', fontSize: '18px', fontWeight: 600 }}>{status.bufferHealth.toFixed(0)}%</div>
+            </div>
+          </div>
+          <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid var(--border)' }}>
+            <label style={{ display: 'block', fontSize: '12px', color: 'var(--fg-secondary)', marginBottom: '4px' }}>
+              Buffer: {status.bufferLen} / {status.targetFrames} frames
+            </label>
+            <div style={{
+              height: '8px',
+              backgroundColor: 'var(--bg-tertiary)',
+              borderRadius: '4px',
+              overflow: 'hidden',
+            }}>
+              <div style={{
+                width: `${Math.min(100, status.bufferHealth)}%`,
+                height: '100%',
+                backgroundColor: status.bufferHealth >= 80 ? 'var(--success)' : status.bufferHealth >= 50 ? 'var(--warning)' : 'var(--error)',
+                transition: 'width 0.3s ease',
+              }} />
             </div>
           </div>
         </section>
@@ -165,6 +228,7 @@ function App() {
             <select
               value={selectedDevice}
               onChange={e => setSelectedDevice(e.target.value)}
+              disabled={status.running}
               style={{
                 padding: '8px 12px',
                 borderRadius: '6px',
@@ -175,45 +239,45 @@ function App() {
               }}
             >
               <option value="">Select virtual cable...</option>
-              <option value="CABLE Input (VB-Audio Virtual Cable)">CABLE Input (VB-Audio Virtual Cable)</option>
-              <option value="VB-Audio Point">VB-Audio Point</option>
-              <option value="PipeWire Loopback">PipeWire Loopback (Linux)</option>
+              {devices.map(d => (
+                <option key={d} value={d}>{d}</option>
+              ))}
             </select>
           </div>
           <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
             <button
               onClick={startServer}
-              disabled={status.running}
+              disabled={status.running || loading || !selectedDevice}
               style={{
                 padding: '12px 24px',
                 borderRadius: '8px',
                 border: 'none',
                 fontSize: '14px',
                 fontWeight: 600,
-                cursor: status.running ? 'not-allowed' : 'pointer',
-                backgroundColor: status.running ? 'var(--bg-tertiary)' : 'var(--accent)',
-                color: status.running ? 'var(--fg-secondary)' : 'var(--bg-primary)',
-                opacity: status.running ? 0.6 : 1,
+                cursor: status.running || loading || !selectedDevice ? 'not-allowed' : 'pointer',
+                backgroundColor: status.running || loading || !selectedDevice ? 'var(--bg-tertiary)' : 'var(--accent)',
+                color: status.running || loading || !selectedDevice ? 'var(--fg-secondary)' : 'var(--bg-primary)',
+                opacity: status.running || loading || !selectedDevice ? 0.6 : 1,
               }}
             >
-              {status.running ? 'Server Running' : 'Start Server'}
+              {loading ? 'Starting...' : status.running ? 'Server Running' : 'Start Server'}
             </button>
             <button
               onClick={stopServer}
-              disabled={!status.running}
+              disabled={!status.running || loading}
               style={{
                 padding: '12px 24px',
                 borderRadius: '8px',
                 border: '1px solid var(--error)',
                 fontSize: '14px',
                 fontWeight: 600,
-                cursor: !status.running ? 'not-allowed' : 'pointer',
-                backgroundColor: !status.running ? 'var(--bg-tertiary)' : 'transparent',
-                color: !status.running ? 'var(--fg-secondary)' : 'var(--error)',
-                opacity: !status.running ? 0.6 : 1,
+                cursor: !status.running || loading ? 'not-allowed' : 'pointer',
+                backgroundColor: !status.running || loading ? 'var(--bg-tertiary)' : 'transparent',
+                color: !status.running || loading ? 'var(--fg-secondary)' : 'var(--error)',
+                opacity: !status.running || loading ? 0.6 : 1,
               }}
             >
-              Stop Server
+              {loading ? 'Stopping...' : 'Stop Server'}
             </button>
           </div>
         </section>

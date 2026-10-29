@@ -1,5 +1,7 @@
 //! Protocol constants shared between Android and PC
 
+pub mod frame;
+
 /// Magic bytes for PelancaMic audio frames (0x4D53 = "MS")
 pub const MAGIC: u16 = 0x4D53;
 

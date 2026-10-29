@@ -5,16 +5,24 @@ description = "PelancaMic PC Server"
 authors = ["PelancaMic Team"]
 license = "MIT"
 edition = "2021"
+default-run = "pelancamic"
 
 [build-dependencies]
 tauri-build = { version = "2.0", features = [] }
+tauri-macros = { version = "2.0", features = [] }
+
+[features]
+default = ["audio"]
+audio = ["cpal"]
+audio-tools = ["cpal"]
 
 [dependencies]
-tauri = { version = "2.0", features = ["macros"] }
-tauri-plugin-shell = "2.0"
-tauri-plugin-fs = "2.0"
+tauri = { version = "2.0", features = [] }
+# tauri-plugin-shell = "2.0"
 tokio = { version = "1", features = ["full"] }
-cpal = { version = "0.15", features = ["jack", "pulse", "wasapi", "alsa"] }
+tokio-tungstenite = { version = "0.21", features = ["native-tls"] }
+futures-util = "0.3"
+cpal = { version = "0.18", features = ["default"], optional = true }
 bytes = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -22,3 +30,4 @@ thiserror = "1"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 anyhow = "1"
+hostname = "0.3"

@@ -4,9 +4,9 @@ use std::collections::VecDeque;
 use std::net::{SocketAddr, UdpSocket};
 use std::sync::{Arc, Mutex};
 use std::thread;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 use crate::protocol::*;
-use crate::protocol::frame::{AudioFrame, AudioFrameHeader};
+use crate::protocol::frame::AudioFrame;
 
 const MAX_BUFFER_FRAMES: usize = 16;
 const TARGET_BUFFER_FRAMES: usize = 5;
@@ -67,7 +67,7 @@ impl AudioReceiver {
         });
     }
 
-    fn process_packet(&self, data: &[u8], src: SocketAddr) {
+    fn process_packet(&self, data: &[u8], _src: SocketAddr) {
         if let Some(frame) = AudioFrame::decode(data) {
             let mut stats = self.stats.lock().unwrap();
             stats.packets_received += 1;
@@ -100,9 +100,9 @@ impl AudioReceiver {
     fn adapt_buffer_target(&self, current_len: usize) {
         let mut target = self.target_buffer_frames.lock().unwrap();
         if current_len < MIN_BUFFER_FRAMES {
-            *target = (*target + 1).min(MAX_BUFFER_FRAMES_ADAPTIVE);
+            *target = target.saturating_add(1).min(MAX_BUFFER_FRAMES_ADAPTIVE);
         } else if current_len > MAX_BUFFER_FRAMES_ADAPTIVE {
-            *target = (*target.saturating_sub(1)).max(MIN_BUFFER_FRAMES);
+            *target = target.saturating_sub(1).max(MIN_BUFFER_FRAMES);
         }
     }
 

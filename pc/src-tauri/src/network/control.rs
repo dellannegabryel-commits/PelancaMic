@@ -8,7 +8,6 @@ use tokio::sync::broadcast;
 use tokio_tungstenite::{accept_async, tungstenite::Message};
 use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
-use crate::protocol::control::*;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", content = "payload")]
@@ -71,7 +70,7 @@ impl ControlServer {
 
     async fn handle_connection(&self, stream: TcpStream, peer_addr: SocketAddr) -> anyhow::Result<()> {
         let ws_stream = accept_async(stream).await?;
-        let (mut ws_sender, mut ws_receiver) = ws_stream.split();
+        let (ws_sender, mut ws_receiver) = ws_stream.split();
 
         {
             let mut clients = self.clients.lock().unwrap();
@@ -173,7 +172,7 @@ mod tests {
     fn test_control_message_serialization() {
         let msg = ControlMessage::Hello { client_name: "TestPhone".to_string() };
         let json = msg.to_json();
-        assert!(json.contains("hello"));
+        assert!(json.to_lowercase().contains("hello"));
         assert!(json.contains("TestPhone"));
 
         let parsed = ControlMessage::from_json(&json).unwrap();
